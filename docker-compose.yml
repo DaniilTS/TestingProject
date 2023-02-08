@@ -1,0 +1,77 @@
+version: '3.2'
+
+services:
+  redis-master:
+    image: redis:latest
+    hostname: redis-master
+    container_name: redis-master
+    command: redis-server --requirepass ${MASTERAUTHPASSWORD}
+    ports:
+      - '6379:6379'
+    networks:
+      - dockerapi-dev
+
+  redis-slave:
+    image: redis:latest
+    hostname: redis-slave
+    container_name: redis-slave
+    command: redis-server --slaveof redis-master 6379 --masterauth ${MASTERAUTHPASSWORD}
+    ports:
+      - '6380:6380'
+    networks:
+      - dockerapi-dev
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    build:
+      dockerfile: /conf/rabbitmq/Dockerfile
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    volumes:
+      - ./conf/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./conf/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+      - ./conf/rabbitmq/init.sh:/init.sh
+    command: bash -c "chmod +x /init.sh && /init.sh"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - dockerapi-dev
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    restart: on-failure
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    ports:
+      - '5432'
+    networks:
+      - dockerapi-dev
+
+  api:
+    image: mcr.microsoft.com/dotnet/sdk:6.0
+    container_name: api
+    ports:
+      - 5000:80
+    volumes:
+      - ${APIPATH}:/app
+      - ./conf/api/init.sh:/init.sh
+    environment:
+      - ASPNETCORE_URLS=http://+80
+      - ASPNETCORE_ENVIRONMENT=Development
+      - CacheSettings__RedisConnectionString=${REDISCONNECTION},password=${MASTERAUTHPASSWORD}
+      - DbContextSettings__ConnectionString=${DATABASECONNECTION}
+    working_dir: /app
+    command: bash -c "chmod +x /init.sh && /init.sh"
+    restart: on-failure
+    depends_on:
+      - postgres
+    networks:
+      - dockerapi-dev
+
+networks:
+  dockerapi-dev:
+    driver: bridge 

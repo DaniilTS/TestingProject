@@ -1,0 +1,16 @@
+{
+    "vhosts":[
+        {
+          "name":"/"
+        }
+    ],
+    "queues":[
+        {
+          "name":"messagequeue",
+          "vhost":"/",
+          "durable":false,
+          "auto_delete":false,
+          "arguments":{}
+        }
+    ]
+}
